@@ -42,9 +42,13 @@ namespace WinCal
                     if (cmd == "icon-test")
                     {
                         Directory.CreateDirectory("icon-test");
-                        File.WriteAllBytes("icon-test\\icon16.png", TrayApp.RenderIconPng(16));
-                        File.WriteAllBytes("icon-test\\icon32.png", TrayApp.RenderIconPng(32));
-                        File.WriteAllBytes("icon-test\\icon48.png", TrayApp.RenderIconPng(48));
+                        using (var b = TrayApp.RenderIconBitmap(16)) b.Save("icon-test\\icon16.png", System.Drawing.Imaging.ImageFormat.Png);
+                        using (var b = TrayApp.RenderIconBitmap(32)) b.Save("icon-test\\icon32.png", System.Drawing.Imaging.ImageFormat.Png);
+                        using (var b = TrayApp.RenderIconBitmap(48)) b.Save("icon-test\\icon48.png", System.Drawing.Imaging.ImageFormat.Png);
+                        // проверка, что ICO собирается и читается System.Drawing
+                        using (var ms = TrayApp.BuildIconFile())
+                        using (var ic = new Icon(ms))
+                            Console.WriteLine("ico ok: " + ic.Width + "x" + ic.Height + ", frames=" + ms.Length + "B");
                         Console.WriteLine("icon-test written to " + Path.GetFullPath("icon-test"));
                         return;
                     }
@@ -297,7 +301,9 @@ namespace WinCal
 
         internal static Icon CreateIcon()
         {
-            // многоразмерная иконка (16+32): чётко и в трее, и на высоких DPI
+            // многоразмерная иконка (16+32): чётко и в трее, и на высоких DPI.
+            // Внимание: System.Drawing.Icon не понимает PNG-фреймы в ICO —
+            // фреймы собираются в классическом BMP-формате.
             using (var ms = BuildIconFile())
             {
                 return new Icon(ms);
@@ -306,35 +312,37 @@ namespace WinCal
 
         internal static MemoryStream BuildIconFile()
         {
-            var png16 = RenderIconPng(16);
-            var png32 = RenderIconPng(32);
+            var f16 = BmpFrame(RenderIconBitmap(16));
+            var f32 = BmpFrame(RenderIconBitmap(32));
             var ms = new MemoryStream();
             var w = new BinaryWriter(ms);
             w.Write((ushort)0);          // reserved
             w.Write((ushort)1);          // type: icon
             w.Write((ushort)2);          // frames
-            WriteFrame(w, 16, png16, 22);
-            WriteFrame(w, 32, png32, 22 + png16.Length);
+            WriteFrameHeader(w, 16, f16.Length, 38);  // 6 (ICONDIR) + 2 * 16 (ICONDIRENTRY)
+            WriteFrameHeader(w, 32, f32.Length, 38 + f16.Length);
+            w.Write(f16);
+            w.Write(f32);
             w.Flush();
             ms.Position = 0;
             return ms;
         }
 
-        static void WriteFrame(BinaryWriter w, int size, byte[] png, int offset)
+        static void WriteFrameHeader(BinaryWriter w, int size, int len, int offset)
         {
-            w.Write((byte)(size == 256 ? 0 : size));
-            w.Write((byte)(size == 256 ? 0 : size));
+            w.Write((byte)(size >= 256 ? 0 : size));
+            w.Write((byte)(size >= 256 ? 0 : size));
             w.Write((byte)0);        // colors
             w.Write((byte)0);        // reserved
             w.Write((ushort)1);      // planes
             w.Write((ushort)32);     // bpp
-            w.Write((uint)png.Length);
+            w.Write((uint)len);
             w.Write((uint)offset);
         }
 
-        internal static byte[] RenderIconPng(int s)
+        internal static Bitmap RenderIconBitmap(int s)
         {
-            using (var bmp = new Bitmap(s, s))
+            var bmp = new Bitmap(s, s);
             using (var g = Graphics.FromImage(bmp))
             {
                 g.SmoothingMode = SmoothingMode.AntiAlias;
@@ -354,12 +362,40 @@ namespace WinCal
                 {
                     g.DrawString(text, f, dark, new RectangleF(1f * k, 6f * k, 14f * k, 9f * k), sf);
                 }
-                using (var ms = new MemoryStream())
-                {
-                    bmp.Save(ms, System.Drawing.Imaging.ImageFormat.Png);
-                    return ms.ToArray();
-                }
             }
+            return bmp;
+        }
+
+        // Bitmap -> ICO-фрейм: BITMAPINFOHEADER + XOR (BGRA, снизу вверх) + AND-маска
+        static byte[] BmpFrame(Bitmap bmp)
+        {
+            int w = bmp.Width, h = bmp.Height;
+            var ms = new MemoryStream();
+            var bw = new BinaryWriter(ms);
+            bw.Write(40u);                       // biSize
+            bw.Write((uint)w);                   // biWidth
+            bw.Write((uint)(h * 2));             // biHeight (XOR + AND)
+            bw.Write((ushort)1);                 // biPlanes
+            bw.Write((ushort)32);                // biBitCount
+            bw.Write(0u);                        // biCompression
+            bw.Write((uint)(w * h * 4));         // biSizeImage
+            bw.Write(0); bw.Write(0); bw.Write(0); bw.Write(0);
+
+            var rect = new Rectangle(0, 0, w, h);
+            var data = bmp.LockBits(rect, System.Drawing.Imaging.ImageLockMode.ReadOnly, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+            var px = new byte[w * h * 4];
+            System.Runtime.InteropServices.Marshal.Copy(data.Scan0, px, 0, px.Length);
+            bmp.UnlockBits(data);
+            for (int y = h - 1; y >= 0; y--)
+                bw.Write(px, y * w * 4, w * 4);
+
+            int rowBytes = ((w + 31) / 32) * 4;  // AND-маска 1bpp, выровнена на 32 бита
+            var zeros = new byte[rowBytes];
+            for (int y = 0; y < h; y++)
+                bw.Write(zeros);
+
+            bw.Flush();
+            return ms.ToArray();
         }
     }
 }
