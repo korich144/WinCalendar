@@ -1,0 +1,15 @@
+# build artifacts
+bin/
+libs/
+icon-test/
+third_party/
+*.nupkg
+
+# local experiments and research scripts (not part of the project)
+proto/
+
+# system
+.vs/
+*.user
+Thumbs.db
+libs.bak/

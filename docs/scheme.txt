@@ -1,0 +1,10 @@
+ iCal (URL/файл) ─┐
+                  ├─> [wincal.exe: парсер ICS + RRULE ─┐
+ Thunderbird      │        чтение local.sqlite/prefs.js┤
+ (storage/кэш)   ─┘                                    v
+                                        WinRT AppointmentStore
+                              (AppointmentManager.RequestStoreAsync,
+                               календарь на источник, дифф по state.json)
+                                                       v
+                                        ShellExperienceHost.exe
+                                       ─> агенда во флайауте часов
