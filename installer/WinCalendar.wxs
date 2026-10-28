@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi"
+     xmlns:util="http://schemas.microsoft.com/wix/UtilExtension">
+  <Product Id="*"
+           Name="WinCalendar"
+           Language="1033"
+           Version="1.0.0.0"
+           Manufacturer="WinCalendar contributors"
+           UpgradeCode="CD4A46FD-4B97-454F-8756-191B78FA53C4">
+    <Package InstallerVersion="500"
+             Compressed="yes"
+             InstallScope="perUser"
+             Description="WinCalendar - taskbar clock events for Windows 10"
+             Manufacturer="WinCalendar contributors" />
+
+    <!-- MSI 5.0: per-user без элевации (ALLUSERS=2 + MSIINSTALLPERUSER=1) -->
+    <Property Id="ALLUSERS" Value="2" />
+    <Property Id="MSIINSTALLPERUSER" Value="1" />
+
+    <MajorUpgrade AllowDowngrades="no"
+                  DowngradeErrorMessage="A newer version of WinCalendar is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <Icon Id="AppIcon" SourceFile="bin\wincal.exe" />
+    <Property Id="ARPPRODUCTICON" Value="AppIcon" />
+
+    <!-- закрыть запущенный wincal.exe перед установкой файлов -->
+    <util:CloseApplication Id="CloseWincal" Target="wincal.exe" CloseMessage="yes" RebootPrompt="no" />
+
+    <Feature Id="Main" Title="WinCalendar" Level="1">
+      <ComponentGroupRef Id="AppFiles" />
+    </Feature>
+  </Product>
+
+  <Fragment>
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="LocalAppDataFolder">
+        <Directory Id="INSTALLFOLDER" Name="WinCalendar">
+          <Directory Id="INSTALLX64" Name="x64" />
+          <Directory Id="INSTALLX86" Name="x86" />
+        </Directory>
+      </Directory>
+      <Directory Id="ProgramMenuFolder">
+        <Directory Id="AppMenuDir" Name="WinCalendar" />
+      </Directory>
+    </Directory>
+
+    <ComponentGroup Id="AppFiles">
+      <Component Id="MainExe" Directory="INSTALLFOLDER" Guid="A1C3EFC1-302C-486E-80D8-61AED0D4B312">
+        <File Id="wincal.exe" Source="bin\wincal.exe" />
+        <RegistryValue Root="HKCU" Key="Software\WinCalendar\Components" Name="MainExe"
+                       Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+
+      <Component Id="ShortcutsAndAutostart" Directory="INSTALLFOLDER" Guid="*">
+        <RegistryValue Root="HKCU" Key="Software\WinCalendar" Name="installed"
+                       Type="integer" Value="1" KeyPath="yes" />
+        <!-- автозапуск -->
+        <RegistryValue Root="HKCU" Key="Software\Microsoft\Windows\CurrentVersion\Run"
+                       Name="WinCalendarAgenda" Type="string"
+                       Value="&quot;[INSTALLFOLDER]wincal.exe&quot;" />
+        <!-- MSIINSTALLPERUSER-установки не создают запись в "Установленных программах" сами -->
+        <RegistryValue Root="HKCU" Key="Software\Microsoft\Windows\CurrentVersion\Uninstall\[ProductCode]"
+                       Name="DisplayName" Type="string" Value="WinCalendar" />
+        <RegistryValue Root="HKCU" Key="Software\Microsoft\Windows\CurrentVersion\Uninstall\[ProductCode]"
+                       Name="DisplayVersion" Type="string" Value="1.0.0.0" />
+        <RegistryValue Root="HKCU" Key="Software\Microsoft\Windows\CurrentVersion\Uninstall\[ProductCode]"
+                       Name="Publisher" Type="string" Value="WinCalendar contributors" />
+        <RegistryValue Root="HKCU" Key="Software\Microsoft\Windows\CurrentVersion\Uninstall\[ProductCode]"
+                       Name="DisplayIcon" Type="string" Value="[INSTALLFOLDER]wincal.exe" />
+        <RegistryValue Root="HKCU" Key="Software\Microsoft\Windows\CurrentVersion\Uninstall\[ProductCode]"
+                       Name="UninstallString" Type="string" Value="msiexec /x [ProductCode]" />
+        <RegistryValue Root="HKCU" Key="Software\Microsoft\Windows\CurrentVersion\Uninstall\[ProductCode]"
+                       Name="NoModify" Type="integer" Value="1" />
+        <RegistryValue Root="HKCU" Key="Software\Microsoft\Windows\CurrentVersion\Uninstall\[ProductCode]"
+                       Name="NoRepair" Type="integer" Value="1" />
+        <!-- ярлык в меню Пуск -->
+        <Shortcut Id="StartMenuShortcut" Name="WinCalendar"
+                  Description="WinCalendar - taskbar clock events"
+                  Target="[INSTALLFOLDER]wincal.exe"
+                  WorkingDirectory="INSTALLFOLDER"
+                  Directory="AppMenuDir" />
+        <RemoveFolder Id="RemoveAppMenuDir" Directory="AppMenuDir" On="uninstall" />
+        <RemoveFolder Id="RemoveInstallFolder" Directory="INSTALLFOLDER" On="uninstall" />
+      </Component>
+
+      <Component Id="SqliteManaged" Directory="INSTALLFOLDER" Guid="16D07B8B-04AA-412A-870B-668B6C6C0873">
+        <File Id="System.Data.SQLite.dll" Source="bin\System.Data.SQLite.dll" />
+        <RegistryValue Root="HKCU" Key="Software\WinCalendar\Components" Name="SqliteManaged"
+                       Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+
+      <Component Id="SqliteX64" Directory="INSTALLX64" Guid="626C58F0-EE5E-454A-9FDE-8B8B5274C9C5">
+        <File Id="SQLite.Interop.x64.dll" Source="bin\x64\SQLite.Interop.dll" />
+        <RegistryValue Root="HKCU" Key="Software\WinCalendar\Components" Name="SqliteX64"
+                       Type="integer" Value="1" KeyPath="yes" />
+        <RemoveFolder Id="RemoveX64" Directory="INSTALLX64" On="uninstall" />
+      </Component>
+
+      <Component Id="SqliteX86" Directory="INSTALLX86" Guid="D642090C-9D38-4061-A548-C453F3F7F1DA">
+        <File Id="SQLite.Interop.x86.dll" Source="bin\x86\SQLite.Interop.dll" />
+        <RegistryValue Root="HKCU" Key="Software\WinCalendar\Components" Name="SqliteX86"
+                       Type="integer" Value="1" KeyPath="yes" />
+        <RemoveFolder Id="RemoveX86" Directory="INSTALLX86" On="uninstall" />
+      </Component>
+    </ComponentGroup>
+  </Fragment>
+</Wix>
