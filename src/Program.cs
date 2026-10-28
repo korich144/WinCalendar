@@ -155,10 +155,10 @@ namespace WinCal
             tray = new NotifyIcon();
             tray.Icon = CreateIcon();
             iconDay = DateTime.Now.Day;
-            tray.Text = "WinCalendar — события в часах";
+            tray.Text = "WinCalendar — события в часах\nЛКМ — обновить, ПКМ — меню";
             tray.ContextMenuStrip = menu;
             tray.Visible = true;
-            tray.DoubleClick += delegate { OpenConfig(); };
+            tray.Click += delegate { kick.Set(); }; // одиночный ЛКМ — синхронизировать
 
             cfgStamp = ConfigExists() ? File.GetLastWriteTime(ConfigStore.ConfigPath) : DateTime.MinValue;
             var cfg = ConfigStore.Load(log);
